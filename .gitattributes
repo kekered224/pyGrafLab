@@ -1,0 +1,26 @@
+# Store text as LF in the repository, independent of the contributor's OS.
+* text=auto
+
+# Windows batch launchers need CRLF in the working tree.
+*.bat text eol=crlf
+
+# Binary assets must never be line-ending converted.
+*.bin  binary
+*.png  binary
+*.ico  binary
+*.whl  binary
+*.pyc  binary
+
+# Source, data and config files stay LF on every platform.
+*.py   text eol=lf
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.md   text eol=lf
+*.toml text eol=lf
+*.yml  text eol=lf
+*.cff  text eol=lf
+*.json text eol=lf
+*.gfc  text eol=lf
+*.txt  text eol=lf
+*.in   text eol=lf

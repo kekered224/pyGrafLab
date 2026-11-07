@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, cite it as below and also cite Bucha & Janak (2013), A MATLAB-based graphical user interface program for computing functionals of the geopotential up to ultra-high degrees and orders, Computers & Geosciences 56, 186-196, doi:10.1016/j.cageo.2013.03.012 (see README)."
+title: "pyGrafLab: Python port of the GrafLab spherical harmonic synthesis engine"
+type: software
+authors:
+  - name: "The pygravtools authors"
+date-released: 2026-11-07
+license: MIT
+repository-code: "https://github.com/kekered224/pyGrafLab"
+keywords:
+  - geodesy
+  - gravity-field
+  - spherical-harmonics
+  - geopotential
+  - geoid

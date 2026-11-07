@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pyGrafLab — Spherical Harmonic Synthesis</title>
+<link rel="icon" type="image/png" sizes="any" href="favicon.png" />
+<script>
+/* Apply the stored theme before first paint to avoid a flash. */
+try {
+  var t = localStorage.getItem("pygraflab-theme");
+  var q = new URLSearchParams(location.search).get("theme");
+  if (q === "light" || q === "dark") {
+    t = q;
+    localStorage.setItem("pygraflab-theme", q);
+  }
+  if (t !== "light" && t !== "dark") {
+    t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.dataset.theme = t;
+} catch (e) {}
+</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app" class="app">
+
+  <!-- ================= title bar ================= -->
+  <header class="titlebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+          <circle cx="12" cy="12" r="6.5" />
+          <path d="M4 12h16" />
+        </svg>
+      </div>
+      <span class="brand-name">py<em>GrafLab</em></span>
+      <span class="brand-sub">Spherical Harmonic Synthesis</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="run-status" id="title-progress" style="display:none;">
+      <span class="run-phase">computing</span>
+      <div class="progress indeterminate"><span></span></div>
+    </div>
+    <div class="titlebar-actions">
+      <div class="status-chip" id="status-chip">
+        <span class="dot"></span>
+        <span id="status-text">Ready</span>
+      </div>
+      <button class="icon-btn" id="btn-theme" onclick="toggleTheme()" title="Toggle colour theme" aria-label="Toggle colour theme">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />
+        </svg>
+      </button>
+      <button class="btn btn-primary" id="btn-compute-top" onclick="startCompute()">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1l6 4-6 4z" /></svg>
+        Compute
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= main ================= -->
+  <div class="body">
+
+    <!-- ---------- activity bar ---------- -->
+    <nav class="activitybar" aria-label="Side bar views">
+      <button class="activity-item is-active" id="act-controls" onclick="toggleSidebar()"
+              title="Controls" aria-label="Controls">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h9M17 17h3" />
+          <circle cx="15" cy="7" r="1.8" /><circle cx="9" cy="12" r="1.8" /><circle cx="15" cy="17" r="1.8" />
+        </svg>
+      </button>
+      <button class="activity-item" id="act-plot" onclick="setView('plot')"
+              title="Field plot" aria-label="Field plot">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+          <path d="M7 15.5l3.2-4 2.6 2.4 4.4-6" stroke-linecap="round" />
+        </svg>
+      </button>
+      <button class="activity-item" id="act-results" onclick="setView('results')"
+              title="Numerical results" aria-label="Numerical results">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="1.5" />
+          <path d="M3 9h18M9 9v11" />
+        </svg>
+      </button>
+      <div class="activity-spacer"></div>
+    </nav>
+
+    <!-- ---------- side bar ---------- -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">Controls</div>
+      <div class="scroll">
+
+        <!-- panel: model -->
+        <section class="panel" id="panel-model">
+          <div class="panel-header" onclick="togglePanel('panel-model')">
+            <span class="panel-toggle">▾</span>
+            <span class="panel-title">Geopotential model</span>
+          </div>
+          <div class="panel-body">
+            <div class="field">
+              <label for="ggm-path">GGM file (.gfc / .mat / .txt)</label>
+              <div class="file-display">
+                <input type="text" id="ggm-path" placeholder="GGM/EGM2008.gfc" spellcheck="false">
+                <button class="btn btn-sm" onclick="document.getElementById('ggm-file').click()">…</button>
+                <button class="btn btn-sm btn-primary" id="btn-load" onclick="loadModel()">Load</button>
+              </div>
+              <input type="file" id="ggm-file" accept=".gfc,.txt,.mat" onchange="onFileSelected(this)">
+              <div class="path-hint">
+                A bare filename is searched in <code>GGM/</code> and <code>output/uploads/</code>.
+              </div>
+            </div>
+
+            <div id="model-info"></div>
+
+            <div class="field-row field-row-2">
+              <div class="field">
+                <label for="inp-gm">GM (m³·s⁻²)</label>
+                <input type="text" id="inp-gm" value="3986004.415E+8" spellcheck="false">
+              </div>
+              <div class="field">
+                <label for="inp-r">R (m)</label>
+                <input type="text" id="inp-r" value="6378136.3" spellcheck="false">
+              </div>
+            </div>
+
+            <div class="field-row field-row-3">
+              <div class="field">
+                <label for="inp-nmin">nmin</label>
+                <input type="number" id="inp-nmin" value="0" min="0">
+              </div>
+              <div class="field">
+                <label for="inp-nmax">nmax</label>
+                <input type="number" id="inp-nmax" placeholder="Auto">
+              </div>
+              <div class="field">
+                <label for="inp-ellipsoid">Ellipsoid</label>
+                <select id="inp-ellipsoid">
+                  <option value="1" selected>GRS80</option>
+                  <option value="2">WGS84</option>
+                </select>
+              </div>
+            </div>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="chk-use-nmax" checked>
+              <span>Use the model's maximum degree</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- panel: points -->
+        <section class="panel" id="panel-points">
+          <div class="panel-header" onclick="togglePanel('panel-points')">
+            <span class="panel-toggle">▾</span>
+            <span class="panel-title">Point type &amp; extent</span>
+          </div>
+          <div class="panel-body">
+            <div class="field">
+              <label>Input coordinates</label>
+              <div class="radio-group">
+                <input type="radio" name="coord-type" id="coord-ell" value="0" checked>
+                <label for="coord-ell">Ellipsoidal</label>
+                <input type="radio" name="coord-type" id="coord-sph" value="1">
+                <label for="coord-sph">Spherical</label>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Computation mode</label>
+              <div class="radio-group">
+                <input type="radio" name="mode" id="mode-grid" value="grid" checked onchange="switchMode('grid')">
+                <label for="mode-grid">Grid</label>
+                <input type="radio" name="mode" id="mode-pointwise" value="pointwise" onchange="switchMode('pointwise')">
+                <label for="mode-pointwise">Point-wise</label>
+              </div>
+            </div>
+
+            <div id="grid-inputs">
+              <div class="section-label">Longitude (deg)</div>
+              <div class="field-row field-row-3">
+                <div class="field">
+                  <label for="lon-min">min</label>
+                  <input type="number" id="lon-min" value="100" step="1">
+                </div>
+                <div class="field">
+                  <label for="lon-step">step</label>
+                  <input type="number" id="lon-step" value="1" step="0.1">
+                </div>
+                <div class="field">
+                  <label for="lon-max">max</label>
+                  <input type="number" id="lon-max" value="110" step="1">
+                </div>
+              </div>
+
+              <div class="section-label" style="margin-top:9px;">Latitude (deg)</div>
+              <div class="field-row field-row-3">
+                <div class="field">
+                  <label for="lat-min">min</label>
+                  <input type="number" id="lat-min" value="30" step="1">
+                </div>
+                <div class="field">
+                  <label for="lat-step">step</label>
+                  <input type="number" id="lat-step" value="1" step="0.1">
+                </div>
+                <div class="field">
+                  <label for="lat-max">max</label>
+                  <input type="number" id="lat-max" value="40" step="1">
+                </div>
+              </div>
+
+              <div class="field" style="margin-top:9px;">
+                <label for="inp-h">Height above reference surface (m)</label>
+                <input type="number" id="inp-h" value="0" step="100">
+              </div>
+
+              <div class="path-hint" id="grid-size-hint">—</div>
+            </div>
+
+            <div id="pointwise-inputs" style="display:none;">
+              <div class="field">
+                <label for="pw-lon">Longitude(s), comma separated</label>
+                <input type="text" id="pw-lon" placeholder="116.4, 121.5, 103.8" spellcheck="false">
+              </div>
+              <div class="field">
+                <label for="pw-lat">Latitude(s), comma separated</label>
+                <input type="text" id="pw-lat" placeholder="39.9, 31.2, 36.1" spellcheck="false">
+              </div>
+              <div class="field">
+                <label for="pw-h">Height / radius (m), comma separated</label>
+                <input type="text" id="pw-h" placeholder="0, 0, 0" spellcheck="false">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- panel: functionals -->
+        <section class="panel" id="panel-output">
+          <div class="panel-header" onclick="togglePanel('panel-output')">
+            <span class="panel-toggle">▾</span>
+            <span class="panel-title">Functionals &amp; solver</span>
+          </div>
+          <div class="panel-body">
+            <div class="section-label">Computed parameters (up to 4)</div>
+            <div class="func-grid">
+              <div class="field">
+                <label for="func-1">Functional 1</label>
+                <select id="func-1"></select>
+              </div>
+              <div class="field">
+                <label for="func-2">Functional 2</label>
+                <select id="func-2"></select>
+              </div>
+              <div class="field">
+                <label for="func-3">Functional 3</label>
+                <select id="func-3"></select>
+              </div>
+              <div class="field">
+                <label for="func-4">Functional 4</label>
+                <select id="func-4"></select>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="field">
+              <label for="inp-method">fnALF method</label>
+              <select id="inp-method">
+                <option value="1" selected>Standard forward column</option>
+                <option value="2">Modified forward column (Horner)</option>
+                <option value="3">Extended-range arithmetic</option>
+              </select>
+              <div class="path-hint" id="method-hint"></div>
+            </div>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="chk-commission">
+              <span>Commission error</span>
+            </label>
+
+            <div id="commission-settings" style="display:none;">
+              <div class="field">
+                <label for="cov-path">Covariance matrix</label>
+                <div class="file-display">
+                  <input type="text" id="cov-path" placeholder="output/uploads/covariance.mat" spellcheck="false">
+                  <button class="btn btn-sm" onclick="document.getElementById('cov-file').click()">…</button>
+                </div>
+                <input type="file" id="cov-file" accept=".txt,.mat,.dat,.cov" onchange="onCovFileSelected(this)">
+              </div>
+              <div class="field">
+                <label for="inp-nmax-cov">nmax (covariance)</label>
+                <input type="number" id="inp-nmax-cov" placeholder="Auto">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- panel: run -->
+        <section class="panel" id="panel-run">
+          <div class="panel-header" onclick="togglePanel('panel-run')">
+            <span class="panel-toggle">▾</span>
+            <span class="panel-title">Run</span>
+          </div>
+          <div class="panel-body">
+            <div class="path-hint" id="run-summary">No model loaded.</div>
+            <button class="btn btn-primary btn-block" id="btn-compute" onclick="startCompute()">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1l6 4-6 4z" /></svg>
+              Compute
+            </button>
+          </div>
+        </section>
+
+      </div>
+    </aside>
+
+    <!-- ---------- editor ---------- -->
+    <main class="stage">
+      <div class="editor-tabs" role="tablist" aria-label="Editor">
+        <button role="tab" class="editor-tab is-active" id="tab-plot" onclick="setView('plot')">
+          <span class="tab-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+              <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+              <path d="M7 15.5l3.2-4 2.6 2.4 4.4-6" stroke-linecap="round" />
+            </svg>
+          </span>
+          Field plot
+        </button>
+        <button role="tab" class="editor-tab" id="tab-results" onclick="setView('results')">
+          <span class="tab-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="16" rx="1.5" />
+              <path d="M3 9h18M9 9v11" />
+            </svg>
+          </span>
+          Results
+        </button>
+      </div>
+
+      <div class="editor-body" id="editor-body" data-view="plot">
+
+        <!-- plot view -->
+        <div class="viz-area" id="view-plot">
+          <div class="viz-toolbar">
+            <select id="viz-functional" onchange="updateVisualization()" title="Functional to display">
+              <option value="">— Select result —</option>
+            </select>
+            <div class="viz-info" id="viz-info"></div>
+            <div class="spacer"></div>
+            <button class="btn btn-sm btn-ghost" id="btn-download" onclick="downloadResults()" style="display:none;">
+              ↓ Export
+            </button>
+          </div>
+
+          <div id="plot-container">
+            <canvas id="plot-canvas"></canvas>
+            <div id="plot-tooltip"></div>
+            <div id="plot-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                <rect x="3" y="4" width="18" height="16" rx="1.5"/>
+                <path d="M3 9h18M9 9v11"/>
+              </svg>
+              <p>No results yet</p>
+              <span class="hint">Load a model, then run a computation to plot the field</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- results view -->
+        <div class="results-panel" id="results-panel">
+          <div class="results-header">
+            <span>Numerical results</span>
+            <span class="spacer"></span>
+            <button class="btn btn-sm btn-ghost" onclick="toggleResultsTable()">Toggle</button>
+          </div>
+          <div id="results-table-container"></div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= status bar ================= -->
+  <footer class="statusbar">
+    <span class="sb-item" id="footer-msg">Ready</span>
+    <div class="sb-right">
+      <span class="sb-item" id="footer-grid-info"></span>
+      <span class="sb-item" id="footer-time"></span>
+      <span class="sb-item"><span class="v">pyGrafLab</span></span>
+    </div>
+  </footer>
+</div>
+
+<div class="progress-overlay" id="progress-overlay">
+  <div class="progress-card">
+    <div class="progress-spinner"></div>
+    <h3>Computing…</h3>
+    <p id="progress-msg">Running spherical harmonic synthesis</p>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script src="plot.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

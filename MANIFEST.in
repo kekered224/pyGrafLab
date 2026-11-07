@@ -1,0 +1,13 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include start.bat
+
+recursive-include pygraflab *.py *.html *.css *.js *.png *.ico
+recursive-include icons *.png *.ico
+recursive-include examples *.py
+recursive-include tools *.py
+
+# The degree-180 EIGEN-6C4 subset ships with the source archive so that the
+# example and the tests run on a fresh checkout; full models come from ICGEM.
+include GGM/EIGEN-6C4_n180.gfc
